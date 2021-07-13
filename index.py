@@ -1,14 +1,15 @@
+# pylint: disable=missing-module-docstring,missing-function-docstring,invalid-name
 # look for appointments in Israel
 # Using mechanicalsoup.readthedocs.io
 
-import mechanicalsoup
+import datetime
 import re
-import time
+import mechanicalsoup
 
 def check_months(browser, site):
-    for m in range(8,13):
-        response = browser.submit_selected()
-        # This response is the current month's calendar of appointments
+    for m in range(datetime.datetime.today().month + 1, 14):
+        r = browser.submit_selected()
+        assert r.ok
         month = browser.page.find_all('h3')[0].contents[0].replace('\xa0', ' ')
         found = check_month(browser)
         alert = ""
@@ -16,9 +17,10 @@ def check_months(browser, site):
             alert = "  !!!!!!!!!!!!!!!!!!!!!!!"
         print(f"{site}: {month}--{found}{alert}")
 
-        # Get ready for the next month
-        form = browser.select_form()
-        form.set_select({'nMonth': str(m) })
+        if m <= 12:
+            # Get ready for the next month
+            form = browser.select_form()
+            form.set_select({'nMonth': str(m) })
 
 def check_month(browser):
     found = False
@@ -50,8 +52,7 @@ def check_month(browser):
             found = True
     return found
 
-def lookup():
-    browser = mechanicalsoup.StatefulBrowser()
+def lookup(browser):
     site = "Jerusalem"
     browser.open(jerusalem_start)
     input_field = browser.page.find_all('input')[0]
@@ -64,7 +65,6 @@ def lookup():
     browser[jerusalem_read_instructions] = jerusalem_read_instructions_value
     check_months(browser, site)
 
-    browser = mechanicalsoup.StatefulBrowser()
     site = "Tel Aviv"
     browser.open(telaviv_start)
     input_field = browser.page.find_all('input')[0]
@@ -90,5 +90,9 @@ ta_read_instructions = 'chkbox01' # name
 ta_read_instructions_value = 'on'
 regular_colors = ["#ADD9F4", "#C0C0C0"]
 
-while True:
-    lookup()
+def main():
+    browser = mechanicalsoup.StatefulBrowser()
+    while True:
+        lookup(browser)
+
+main()
