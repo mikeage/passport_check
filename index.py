@@ -3,12 +3,10 @@
 
 import mechanicalsoup
 import re
-import numpy
 import time
 
 def check_months(browser, site):
-    # Loop for months 5, 6, 7 (May, June, July)
-    for m in iter(['5', '6', '7', '8']):  # The last item in the list is not queried
+    for m in range(8,13):
         response = browser.submit_selected()
         # This response is the current month's calendar of appointments
         month = browser.page.find_all('h3')[0].contents[0].replace('\xa0', ' ')
@@ -20,7 +18,7 @@ def check_months(browser, site):
 
         # Get ready for the next month
         form = browser.select_form()
-        form.set_select({'nMonth': m })
+        form.set_select({'nMonth': str(m) })
 
 def check_month(browser):
     found = False
@@ -31,7 +29,7 @@ def check_month(browser):
     # bgcolor #ffffc0 is available appt!!!
     calendar = browser.page.find_all(id="Table3")[0]
     c_re = re.compile('<td.*?(\"#.*?\")')
-    bgcolors = c_re.findall(str(calendar))
+    bgcolors = [b.upper().replace("'", "").replace('"', '') for b in c_re.findall(str(calendar))]
 
     # the number of tr elements
     c_tr = re.compile('(<tr)')
@@ -46,8 +44,7 @@ def check_month(browser):
         found = True
         return found
 
-    n_list = numpy.array(bgcolors)
-    unique = numpy.unique(n_list)
+    unique = list(set(bgcolors))
     for color in unique:
         if color not in regular_colors:
             found = True
@@ -91,13 +88,7 @@ ta_service = 'chkservice'
 ta_service_value = 'AA'
 ta_read_instructions = 'chkbox01' # name
 ta_read_instructions_value = 'on'
-regular_colors = ['"#ADD9F4"', '"#C0C0C0"', '"#c0c0c0"']
+regular_colors = ["#ADD9F4", "#C0C0C0"]
 
 while True:
-    print(time.ctime())
     lookup()
-    time.sleep(60 * 60)
-
-
-#browser.form.print_summary()
-#browser.launch_browser()
