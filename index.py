@@ -6,21 +6,18 @@ import datetime
 import re
 import mechanicalsoup
 
+
 def check_months(browser, site):
     for m in range(datetime.datetime.today().month + 1, 14):
         r = browser.submit_selected()
         assert r.ok
-        month = browser.page.find_all('h3')[0].contents[0].replace('\xa0', ' ')
+        month = browser.page.find_all('h3')[0].contents[0].replace('\xa0', ' ').strip()
         found = check_month(browser)
-        alert = ""
-        if found:
-            alert = "  !!!!!!!!!!!!!!!!!!!!!!!"
-        print(f"{site}: {month}--{found}{alert}")
+        print(f"{site}: {month} {found}")
 
-        if m <= 12:
-            # Get ready for the next month
+        if m <= 12:  # Get ready for the next month
             form = browser.select_form()
-            form.set_select({'nMonth': str(m) })
+            form.set_select({'nMonth': str(m)})
 
 def check_month(browser):
     found = False
