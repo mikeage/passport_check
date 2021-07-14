@@ -5,6 +5,7 @@
 import datetime
 import re
 import mechanicalsoup
+import telegram_send
 
 
 def check_months(browser, site):
@@ -43,6 +44,10 @@ def check_month(browser, site, month):
             bgcolor = cell.attrs.get('bgcolor', None)
             if bgcolor and bgcolor.upper() not in unavailable_colors:
                 print(f"At {cur_time}, found an appointment at {site} on {month} ({cell.text})")
+                try:
+                    telegram_send.send(messages=[f"Found an appointment in {site}! Check {month} on {cell.text}"])
+                except telegram_send.ConfigError:
+                    pass
                 found = True
     return found
 
@@ -86,6 +91,10 @@ def lookup(browser):  # pylint: disable=too-many-locals
 
 
 def main():
+    try:
+        telegram_send.send(messages=["Starting up!"])
+    except telegram_send.ConfigError:
+        print("Telegram not configured. Run telegram-send --configure once to get started. Notifications will be disabled")
     browser = mechanicalsoup.StatefulBrowser()
     while True:
         lookup(browser)
