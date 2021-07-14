@@ -4,39 +4,44 @@
 
 import datetime
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed, Future
 import mechanicalsoup
 import telegram_send
 
 
-def check_site(browser, site):
-    browser.open(site["start_url"])
-    input_field = browser.page.find_all('input')[0]
-    r = re.compile("(make.*)';")
-    temp = str(input_field['onclick'])
-    m = r.findall(temp)[0]
-    browser.open('https://evisaforms.state.gov/acs/' + m)
-    browser.select_form('form')
-    browser["chkservice"] = site["service_value"]
-    browser["chkbox01"] = 'on'
+def check_site(site):
+    cur_time = datetime.datetime.now().isoformat()
+    print(f"{cur_time} Checking {site['site']} for {site['type']}")
+    with mechanicalsoup.StatefulBrowser() as browser:
+        browser.open(site["start_url"])
+        input_field = browser.page.find_all('input')[0]
+        r = re.compile("(make.*)';")
+        temp = str(input_field['onclick'])
+        m = r.findall(temp)[0]
+        browser.open('https://evisaforms.state.gov/acs/' + m)
+        browser.select_form('form')
+        browser["chkservice"] = site["service_value"]
+        browser["chkbox01"] = 'on'
 
-    for m in range(datetime.datetime.today().month + 1, 14):
-        r = browser.submit_selected()
-        try:
-            assert r.ok
-        except AssertionError:
-            print(r)
-            raise
-        month = browser.page.find_all('h3')[0].contents[0].replace('\xa0', ' ').strip()
-        found = check_month(browser, site["site"], site["type"], month)
-        # print(f"{site}: {month} {found}")
+        for m in range(datetime.datetime.today().month, 13):
+            r = browser.submit_selected()
+            try:
+                assert r.ok
+            except AssertionError:
+                print(r)
+                raise
+            month = browser.page.find_all('h3')[0].contents[0].replace('\xa0', ' ').strip()
+            found = check_month(browser, site["site"], site["type"], month)
+            # print(f"{site}: {month} {found}")
 
-        if m <= 12:  # Get ready for the next month
-            form = browser.select_form()
-            form.set_select({'nMonth': str(m)})
+            if m+1 <= 12:  # Get ready for the next month
+                form = browser.select_form()
+                form.set_select({'nMonth': str(m+1)})
+    return found
 
 
 def check_month(browser, site, apt_type, month):
-    print(f"Checking {site} for {apt_type} in {month}")
+    print(f"{site}/{apt_type}: {month}")
     found = False
 
     # id=Table3 is the calendar
@@ -67,7 +72,7 @@ def check_month(browser, site, apt_type, month):
     return found
 
 
-def lookup(browser):  # pylint: disable=too-many-locals
+def lookup():
     sites = [
             {
                 "site": "Jerusalem",
@@ -95,18 +100,19 @@ def lookup(browser):  # pylint: disable=too-many-locals
                 },
             ]
 
-    for site in sites:
-        check_site(browser, site)
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(check_site, site) for site in sites]
 
+    for result in as_completed(futures):
+        print(result.result())
 
 def main():
     try:
         telegram_send.send(messages=["Starting up!"])
     except telegram_send.ConfigError:
         print("Telegram not configured. Run telegram-send --configure once to get started. Notifications will be disabled")
-    browser = mechanicalsoup.StatefulBrowser()
     while True:
-        lookup(browser)
+        lookup()
 
 
 main()
