@@ -8,7 +8,17 @@ import mechanicalsoup
 import telegram_send
 
 
-def check_months(browser, site):
+def check_site(browser, site):
+    browser.open(site["start_url"])
+    input_field = browser.page.find_all('input')[0]
+    r = re.compile("(make.*)';")
+    temp = str(input_field['onclick'])
+    m = r.findall(temp)[0]
+    browser.open('https://evisaforms.state.gov/acs/' + m)
+    browser.select_form('form')
+    browser["chkservice"] = site["service_value"]
+    browser["chkbox01"] = 'on'
+
     for m in range(datetime.datetime.today().month + 1, 14):
         r = browser.submit_selected()
         try:
@@ -17,7 +27,7 @@ def check_months(browser, site):
             print(r)
             raise
         month = browser.page.find_all('h3')[0].contents[0].replace('\xa0', ' ').strip()
-        found = check_month(browser, site, month)
+        found = check_month(browser, site["site"], site["type"], month)
         # print(f"{site}: {month} {found}")
 
         if m <= 12:  # Get ready for the next month
@@ -25,8 +35,8 @@ def check_months(browser, site):
             form.set_select({'nMonth': str(m)})
 
 
-def check_month(browser, site, month):
-    print(f"Checking {site} for {month}")
+def check_month(browser, site, apt_type, month):
+    print(f"Checking {site} for {apt_type} in {month}")
     found = False
 
     # id=Table3 is the calendar
@@ -43,9 +53,14 @@ def check_month(browser, site, month):
         for cell in cells:
             bgcolor = cell.attrs.get('bgcolor', None)
             if bgcolor and bgcolor.upper() not in unavailable_colors:
-                print(f"At {cur_time}, found an appointment at {site} on {month} ({cell.text})")
                 try:
-                    telegram_send.send(messages=[f"Found an appointment in {site}! Check {month} on {cell.text}"])
+                    split = cell.text.split("Available ")
+                    text = f"{split[0]} {month} count: {split[1]}"
+                except:  # pylint: disable=bare-except
+                    text = f"{month} {cell.text}"
+                print(f"At {cur_time}, found an appointment for {apt_type} at {site} on {month} ({cell.text})")
+                try:
+                    telegram_send.send(messages=[f"Found an appointment in {site}! {text}"])
                 except telegram_send.ConfigError:
                     pass
                 found = True
@@ -53,41 +68,35 @@ def check_month(browser, site, month):
 
 
 def lookup(browser):  # pylint: disable=too-many-locals
-    jerusalem_start = 'https://evisaforms.state.gov/acs/default.asp?postcode=JRS&appcode=1'
-    telaviv_start = 'https://evisaforms.state.gov/acs/default.asp?postcode=TLV&appcode=1'
-    appt_dir = 'https://evisaforms.state.gov/acs/'
-    jerusalem_service = 'chkservice'
-    jerusalem_service_value = '03'  # name is chkservice
-    jerusalem_read_instructions = 'chkbox01'  # name
-    jerusalem_read_instructions_value = 'on'
-    ta_service = 'chkservice'
-    ta_service_value = 'AA'
-    ta_read_instructions = 'chkbox01'  # name
-    ta_read_instructions_value = 'on'
+    sites = [
+            {
+                "site": "Jerusalem",
+                "type": "First Passport",
+                "start_url": 'https://evisaforms.state.gov/acs/default.asp?postcode=JRS&appcode=1',
+                "service_value": "02"
+                },
+            {
+                "site": "Jerusalem",
+                "type": "CRBA",
+                "start_url": 'https://evisaforms.state.gov/acs/default.asp?postcode=JRS&appcode=1',
+                "service_value": "02B"
+                },
+            {
+                "site": "Tel Aviv",
+                "type": "All Passport",
+                "start_url": 'https://evisaforms.state.gov/acs/default.asp?postcode=TLV&appcode=1',
+                "service_value": "AA"
+                },
+            {
+                "site": "Tel Aviv",
+                "type": "CRBA",
+                "start_url": 'https://evisaforms.state.gov/acs/default.asp?postcode=TLV&appcode=1',
+                "service_value": "02B"
+                },
+            ]
 
-    site = "Jerusalem"
-    browser.open(jerusalem_start)
-    input_field = browser.page.find_all('input')[0]
-    r = re.compile("(make.*)';")
-    temp = str(input_field['onclick'])
-    m = r.findall(temp)[0]
-    browser.open(appt_dir + m)
-    browser.select_form('form')
-    browser[jerusalem_service] = jerusalem_service_value
-    browser[jerusalem_read_instructions] = jerusalem_read_instructions_value
-    check_months(browser, site)
-
-    site = "Tel Aviv"
-    browser.open(telaviv_start)
-    input_field = browser.page.find_all('input')[0]
-    r = re.compile("(make.*)';")
-    temp = str(input_field['onclick'])
-    m = r.findall(temp)[0]
-    browser.open(appt_dir + m)
-    browser.select_form('form')
-    browser[ta_service] = ta_service_value
-    browser[ta_read_instructions] = ta_read_instructions_value
-    check_months(browser, site)
+    for site in sites:
+        check_site(browser, site)
 
 
 def main():
