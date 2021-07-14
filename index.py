@@ -10,17 +10,22 @@ import mechanicalsoup
 def check_months(browser, site):
     for m in range(datetime.datetime.today().month + 1, 14):
         r = browser.submit_selected()
-        assert r.ok
+        try:
+            assert r.ok
+        except AssertionError:
+            print(r)
+            raise
         month = browser.page.find_all('h3')[0].contents[0].replace('\xa0', ' ').strip()
-        found = check_month(browser)
-        print(f"{site}: {month} {found}")
+        found = check_month(browser, site, month)
+        # print(f"{site}: {month} {found}")
 
         if m <= 12:  # Get ready for the next month
             form = browser.select_form()
             form.set_select({'nMonth': str(m)})
 
 
-def check_month(browser):
+def check_month(browser, site, month):
+    print(f"Checking {site} for {month}")
     found = False
 
     # id=Table3 is the calendar
@@ -31,12 +36,13 @@ def check_month(browser):
 
     calendar = browser.page.find(id="Table3")
 
+    cur_time = datetime.datetime.now().isoformat()
     for table_row in calendar.select("tr"):
         cells = table_row.findAll('td')
         for cell in cells:
             bgcolor = cell.attrs.get('bgcolor', None)
             if bgcolor and bgcolor.upper() not in unavailable_colors:
-                print("Found an appointment on %s" % cell.text)
+                print(f"At {cur_time}, found an appointment at {site} on {month} ({cell.text})")
                 found = True
     return found
 
